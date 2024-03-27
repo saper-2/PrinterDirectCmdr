@@ -23,6 +23,15 @@ namespace PrinterHelpers
             [MarshalAs(UnmanagedType.LPStr)]
             public string pDataType;
         }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+        internal class PRINTERDEFAULTSClass
+        {
+            public IntPtr pDatatype;
+            public IntPtr pDevMode;
+            public int DesiredAccess;
+        }
+
         [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
         public static extern unsafe bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, ref IntPtr hPrinter, IntPtr pd);
 
@@ -101,6 +110,9 @@ namespace PrinterHelpers
         private string printerName;
         public string PrinterName { get { return printerName; } }
 
+        private int win32LastErrCode = 0;
+        public int Win32LastErrorCode {  get { return win32LastErrCode; } }
+
         /// <summary>
         /// Open printer handle, document & start it.
         /// Return: 0=printer_opened&doc_started&page_started , 1=Can't open printer , 2=cant' start doc, 3=can't start page
@@ -111,6 +123,7 @@ namespace PrinterHelpers
         public int OpenPrinter(string szPrinterName, string docName = ".NET-RAW-PRINT")
         {
             int re = 1;
+            win32LastErrCode = 0;
             if (PrinterOpen == false)
             {
                 di.pDocName = docName;
@@ -125,16 +138,20 @@ namespace PrinterHelpers
                         {
                             PrinterOpen = true;
                             printerName = szPrinterName;
+                            re = 0;
                         } else
                         {
+                            win32LastErrCode = Marshal.GetLastWin32Error();
                             re = 3;
                         }
                     } else
                     {
+                        win32LastErrCode = Marshal.GetLastWin32Error();
                         re = 2;
                     }
                 } else
                 {
+                    win32LastErrCode = Marshal.GetLastWin32Error();
                     re = 1;
                 }
             } else
@@ -148,19 +165,24 @@ namespace PrinterHelpers
         /// <summary>
         /// Cose printer handle
         /// </summary>
-        public void ClosePrinter()
+        public int ClosePrinter()
         {
+            int re = 0;
             if (PrinterOpen)
             {
-                EndPagePrinter(hPrinter);
-                EndDocPrinter(hPrinter);
-                ClosePrinter(hPrinter);
+                if (!EndPagePrinter(hPrinter)) re |= 0x01;
+
+                if (!EndDocPrinter(hPrinter)) re |= 0x02;
+                
+                if (!ClosePrinter(hPrinter)) re |= 0x04;
+                
                 PrinterOpen = false;
             }
+            return re;
         }
 
         /// <summary>
-        /// Send command string to printer
+        /// Send command string to printer. Return 0 on success, or Win32LastError on error
         /// </summary>
         /// <param name="szString"></param>
         /// <returns></returns>
@@ -169,6 +191,7 @@ namespace PrinterHelpers
 
             bool re = false;
             int rei = -1;
+            win32LastErrCode = 0;
             if (PrinterOpen)
             {
                 IntPtr pBytes;
@@ -183,6 +206,7 @@ namespace PrinterHelpers
 
                 if (!re) { 
                     rei = Marshal.GetLastWin32Error();
+                    win32LastErrCode = rei;
                 } else
                 {
                     rei = 0;

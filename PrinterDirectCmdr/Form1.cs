@@ -373,6 +373,7 @@ namespace PrinterDirectCmdr
                             case 2: alog("Unable to start document."); break;
                             case 3: alog("Unable to start page."); break;
                     }
+                    alog("Win32LastError: " + rawPrintOut.Win32LastErrorCode.ToString());
                     return re;
                 }
                 else
@@ -394,7 +395,8 @@ namespace PrinterDirectCmdr
         {
             if (rawPrintOut.PrinterIsOpen)
             {
-                rawPrintOut.ClosePrinter();
+                int re = rawPrintOut.ClosePrinter();
+                alog("Close printer resuly: 0x" + re.ToString("X8") + " (win32Error=" + rawPrintOut.Win32LastErrorCode.ToString() + ").");
             }
         }
 
@@ -438,13 +440,15 @@ namespace PrinterDirectCmdr
                 return;
             }
 
-            if (testOnly) return;
+            if (testOnly) 
+            return;
 
             bRunCommands.Enabled = eCmdSeq.Enabled = false;
 
             re = openPrinter();
             if (re != 0) {
-                alog("Sequence: Unable to open printer. STOP.");
+                alog("Sequence: Unable to open printer. STOP. (error: "+re.ToString()+").");
+                bRunCommands.Enabled = eCmdSeq.Enabled = true;
                 return;
             }
             
@@ -462,6 +466,7 @@ namespace PrinterDirectCmdr
                 if (r!=0)
                 {
                     alog("ERROR sending line[" + i.ToString() + "] - ERROR.");
+                    alog("Win32LastError: " + rawPrintOut.Win32LastErrorCode.ToString());
                     break;
                 }
                 Application.DoEvents();
